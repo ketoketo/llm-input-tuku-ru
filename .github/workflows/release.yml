@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 jobs:
   release:
@@ -12,6 +11,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.release.tag_name }}
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.22
 
     - name: Build for Linux
       env:
@@ -25,23 +31,12 @@ jobs:
     #     GOARCH: amd64
     #   run: go build -o my-app-macos main.go
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-
     - name: Upload Linux Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ github.event.release.upload_url }}
         asset_path: ./my-app-linux
         asset_name: my-app-linux
         asset_content_type: application/octet-stream
@@ -51,7 +46,7 @@ jobs:
     #   env:
     #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     #   with:
-    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     upload_url: ${{ github.event.release.upload_url }}
     #     asset_path: ./my-app-macos
     #     asset_name: my-app-macos
     #     asset_content_type: application/octet-stream
