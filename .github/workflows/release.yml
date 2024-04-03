@@ -25,9 +25,6 @@ jobs:
     #     GOARCH: amd64
     #   run: go build -o my-app-macos main.go
 
-    - name: Build
-      run: go build -o my-app main.go
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
