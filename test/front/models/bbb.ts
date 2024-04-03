@@ -1,0 +1,3 @@
+type Aaa = {
+  test: number;
+}

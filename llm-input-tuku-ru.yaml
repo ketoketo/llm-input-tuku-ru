@@ -1,0 +1,11 @@
+exclude_dirs:
+  - node_modules
+  - vendor
+  - test/front/models
+  - .devcontainer
+  - .github
+  - .git
+exclude_files:
+  - go.mod
+  - go.sum
+  - test/app/models/aaa.rb

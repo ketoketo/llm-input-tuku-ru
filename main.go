@@ -1,0 +1,171 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+
+	"github.com/AlecAivazis/survey/v2"
+	"gopkg.in/yaml.v2"
+)
+
+type Config struct {
+	ExcludeDirs  []string `yaml:"exclude_dirs"`
+	ExcludeFiles []string `yaml:"exclude_files"`
+}
+
+func main() {
+	config, err := loadConfig("llm-input-tuku-ru.yaml")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	currentPath, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var files []string
+	err = filepath.Walk(currentPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(currentPath, path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if contains(config.ExcludeDirs, relPath) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if contains(config.ExcludeFiles, relPath) {
+			return nil
+		}
+
+		files = append(files, path)
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	selected, err := selectFiles(files)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(selected) == 0 {
+		fmt.Println("ファイルが選択されませんでした。")
+		return
+	}
+
+	fmt.Print("Enter output path: ")
+	var outputPath string
+	fmt.Scanln(&outputPath)
+
+	err = createDirIfNotExist(outputPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// outputPathが存在する場合は削除
+	if _, err := os.Stat(outputPath); err == nil {
+		err = os.Remove(outputPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	for _, selectedFile := range selected {
+		relPath, err := filepath.Rel(currentPath, selectedFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = file.WriteString(fmt.Sprintf("### %s\n", relPath))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		content, err := os.ReadFile(selectedFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = file.Write(content)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = file.WriteString("\n")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Printf("Output file: %s\n", outputPath)
+}
+
+func createDirIfNotExist(path string) error {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func loadConfig(filename string) (*Config, error) {
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Config{}, nil
+		}
+		return nil, err
+	}
+
+	var config Config
+	err = yaml.Unmarshal(file, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func selectFiles(files []string) ([]string, error) {
+	var selected []string
+	prompt := &survey.MultiSelect{
+		Message: "ファイルを選択してください:",
+		Options: files,
+	}
+	err := survey.AskOne(prompt, &selected, survey.WithKeepFilter(true))
+	if err != nil {
+		return nil, err
+	}
+
+	return selected, nil
+}
